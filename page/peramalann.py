@@ -5,8 +5,9 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 from tensorflow.keras.optimizers import RMSprop
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.callbacks import  ReduceLROnPlateau
 import matplotlib.pyplot as plt
+from google.cloud import firestore
 
 # Fungsi untuk membuat dataset dengan sliding window
 def get_data(data, look_back):
@@ -26,6 +27,9 @@ def build_model(input_shape, units=64, dropout_rate=0.3, learning_rate=0.001):
     optimizer = RMSprop(learning_rate=learning_rate)
     model.compile(optimizer=optimizer, loss='mean_squared_error')
     return model
+
+#inisialisasi database firebase 
+db = firestore.Client.from_service_account_json("key.json")
 
 # Load CSV dari folder lokal
 csv_path = 'data/data_penumpang-exel.csv'  # sesuaikan nama file CSV kamu
@@ -61,15 +65,25 @@ model.fit(
     verbose=0,
     callbacks=[
         ReduceLROnPlateau(monitor='loss', factor=0.5, patience=5, min_lr=1e-6),
-        EarlyStopping(monitor='loss', patience=50, restore_best_weights=True)
     ]
 )
-
 # Input manual dari pengguna (12 data terakhir)
-st.sidebar.header("Input Data Manual (12 bulan terakhir)")
-berangkat_input = st.sidebar.text_input("Masukkan 12 nilai data berangkat (dipisahkan dengan koma):")
-datang_input = st.sidebar.text_input("Masukkan 12 nilai data datang (dipisahkan dengan koma):")
-tombol_pred = st.sidebar.button('prediksi')
+st.sidebar.subheader("Peramalan Jumlah Penumpang yang datang dan berangkat")
+berangkat_input = st.sidebar.text_input("Masukkan 12 bulan penumpanh berangkat")
+datang_input = st.sidebar.text_input("Masukkan 12 bulan penumpanh berangkat datang")
+
+st.markdown("""
+    <style>
+    div.stButton > button {
+        width: 100%;  
+        padding: 10px;
+        font-size: 16px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+tombol_pred = st.sidebar.button('Prediksi')
+
 
 st.header("Prediksi Jumlah Penumpang Datang & Berangkat")
 if berangkat_input and datang_input:
@@ -98,13 +112,16 @@ if berangkat_input and datang_input:
 
         user_predictions = np.array(user_predictions)
         user_predictions_inv = scaler.inverse_transform(user_predictions)
-
         months_user = [f"Bulan {i+1}" for i in range(12)]
         user_df = pd.DataFrame(user_predictions_inv, columns=["datang", "berangkat"])
         user_df["bulan"] = months_user
         st.subheader("Prediksi Berdasarkan Input Manual")
         st.dataframe(user_df[["bulan", "datang", "berangkat"]])
-
+        pred_berangkat = ",".join(map(str,user_df['berangkat'].tolist()))
+        pred_datang = ",".join(map(str, user_df['datang'].tolist()))
+        print(user_df[['datang','berangkat']])
+        print(pred_berangkat)
+        print(pred_datang)
         fig_user, ax_user = plt.subplots(figsize=(10, 4))
         ax_user.plot(months_user, user_df["datang"], label="Datang", marker='o')
         ax_user.plot(months_user, user_df["berangkat"], label="Berangkat", marker='o')
@@ -114,6 +131,15 @@ if berangkat_input and datang_input:
         ax_user.legend()
         st.pyplot(fig_user)
         
+        # Buat data yang akan disimpan dalam firebase
+        data_prediksi = {
+            "prediksi_berangkat": pred_berangkat,
+            "prediksi_datang": pred_datang
+        }
+
+        # Simpan ke koleksi 'forecasting' > dokumen 'test' > subkoleksi 'manual_input'
+        db.collection("forecasting").document("test").collection("manual_input").add(data_prediksi)
+        st.success("Prediksi berhasil disimpan ke Firestore.")
 
         pred_df = user_df
         # Langsung tampilkan gabungan data dan grafik setelah prediksi
@@ -127,4 +153,5 @@ if berangkat_input and datang_input:
         ax.set_ylabel('Jumlah Penumpang')
         ax.legend()
         st.pyplot(fig)
+
 
