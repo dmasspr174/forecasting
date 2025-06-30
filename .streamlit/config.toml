@@ -3,4 +3,4 @@ primaryColor = "#87CEEB"  # Sky blue
 backgroundColor = "#F0F8FF"  # Alice blue (lembut)
 secondaryBackgroundColor = "#E6F2FA"  # Warna biru muda netral
 textColor = "#000000"  # Hitam
-font = "sans serif"
+font = "serif"
