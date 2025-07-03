@@ -1,61 +1,118 @@
 import streamlit as st
 from google.cloud import firestore
-import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
 db = firestore.Client.from_service_account_json("key.json")
 
+# Judul halaman
+st.title("Visualisasi Data Prediksi Penumpang")
+
+# Penjelasan di sidebar
+st.sidebar.write("""
+**Halaman Visualisasi Data Prediksi**
+
+Halaman ini menampilkan hasil prediksi jumlah penumpang yang disimpan di Firebase. Data prediksi berasal dari input pengguna dan hasil pemodelan LSTM.
+
+
+""")
+
+# Ambil data dari Firestore
 docs = list(db.collection("forecasting").stream())
 
-all_berangkat = []
-all_datang = []
-
-
-st.sidebar.write("Halaman ini digunakan untuk menampilkan hasil prediksi jumlah penumpang datang dan berangkat dengan menampilkan data asli dan data prediksi berdasarkan data input pengguna dan hasil dari model LSTM yang telah dilatih.")
-
 if docs:
-    st.success("Data berhasil ditampilkan")
-    for doc in docs:
-        data = doc.to_dict()
-        pred_datang = data.get("prediksi_datang")
-        pred_berangkat = data.get("prediksi_berangkat")
+    st.success("Data berhasil diambil dari Firebase!")
+    
+    # Load data asli
+    try:
+        csv_path = 'data/data_penumpang-exel.csv'
+        df = pd.read_csv(csv_path)
+        
+    except Exception as e:
+        st.error(f"Gagal memuat data asli: {e}")
+        st.stop()
+
+    # Tampilkan semua prediksi
+    for i, doc in enumerate(docs):
+        st.subheader(f"Prediksi #{i+1}")
         
         try:
-            # Parsing string menjadi list float
-            datang_list = [float(i.strip()) for i in pred_datang.split(',')]
-            berangkat_list = [float(i.strip()) for i in pred_berangkat.split(',')]
-
-            all_datang.extend(datang_list)
-            all_berangkat.extend(berangkat_list)
-        
+            data = doc.to_dict()
+            # Langsung gunakan list tanpa split
+            pred_datang = data["prediksi_datang"]
+            pred_berangkat = data["prediksi_berangkat"]
+            
+            # Buat DataFrame untuk prediksi
+            pred_df = pd.DataFrame({
+                "datang": pred_datang,
+                "berangkat": pred_berangkat
+            })
+            
+            # Gabungkan dengan data asli
+            combined_df = pd.concat([df[['datang', 'berangkat']], pred_df], ignore_index=True)
+            
+            # Tampilkan grafik
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(combined_df.index, combined_df["datang"], label="Datang")
+            ax.plot(combined_df.index, combined_df["berangkat"], label="Berangkat")
+            ax.axvline(x=len(df)-1, color='red', linestyle='--', label='Awal Prediksi')
+            ax.set_title(f"Visualisasi Prediksi #{i+1}")
+            ax.set_xlabel("Periode (bulan)")
+            ax.set_ylabel("Jumlah Penumpang")
+            ax.legend()
+            ax.grid(True, linestyle='--', alpha=0.7)
+            st.pyplot(fig)
+            
+            # Tampilkan data dalam tabel
+            with st.expander(f"Lihat Data Prediksi #{i+1}"):
+                st.dataframe(pred_df)
+                
         except Exception as e:
-            st.error(f"Gagal memproses dokumen {doc.id}: {e}")
-
-    csv_path = 'data/data_penumpang-exel.csv'  # sesuaikan nama file CSV kamu
-    df = pd.read_csv(csv_path)
-
-    df_gabungan = pd.DataFrame({
-        "datang": all_datang,
-        "berangkat": all_berangkat
-    })
-
-    # Gabungkan langsung tanpa kolom 'bulan'
-    df_total = pd.concat([df[['datang', 'berangkat']], df_gabungan[['datang', 'berangkat']]], ignore_index=True)
-
-    # Tampilkan hasil gabungan sebagai grafik
-    st.subheader("Data Asli dan Semua Prediksi")
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(df_total.index, df_total["datang"], label="Datang")
-    ax.plot(df_total.index, df_total["berangkat"], label="Berangkat")
-    ax.axvline(x=len(df)-0.5, color='red', linestyle='--', label='Awal Prediksi')
-    ax.set_xlabel("Data Yang Digunakan")
-    ax.set_ylabel("Jumlah Penumpang")
-    ax.legend()
-    st.pyplot(fig)
-    st.dataframe(df_total[["datang", "berangkat"]])
+            st.error(f"Error memproses dokumen {doc.id}: {str(e)}")
+    
+    # Tampilkan semua prediksi dalam satu grafik
+    st.subheader("Gabungan Semua Prediksi")
+    all_datang = []
+    all_berangkat = []
+    
+    for doc in docs:
+        try:
+            data = doc.to_dict()
+            all_datang.extend(data["prediksi_datang"])
+            all_berangkat.extend(data["prediksi_berangkat"])
+        except:
+            continue
+    
+    if all_datang and all_berangkat:
+        # Gabungkan semua data
+        combined_all = pd.concat([
+            df[['datang', 'berangkat']],
+            pd.DataFrame({
+                "datang": all_datang,
+                "berangkat": all_berangkat
+            })
+        ], ignore_index=True)
+        
+        # Grafik gabungan
+        fig, ax = plt.subplots(figsize=(12, 5))
+        ax.plot(combined_all.index, combined_all["datang"], label="Datang")
+        ax.plot(combined_all.index, combined_all["berangkat"], label="Berangkat")
+        ax.axvline(x=len(df)-1, color='red', linestyle='--', label='Awal Prediksi')
+        ax.set_title("Gabungan Semua Prediksi")
+        ax.set_xlabel("Periode (bulan)")
+        ax.set_ylabel("Jumlah Penumpang")
+        ax.legend()
+        ax.grid(True, linestyle='--', alpha=0.7)
+        st.pyplot(fig)
+        
+        # Statistik
+        st.write("**Statistik Gabungan Prediksi:**")
+        col1, col2 = st.columns(2)
+        col1.metric("Total Prediksi Datang", f"{sum(all_datang):,.0f}")
+        col2.metric("Total Prediksi Berangkat", f"{sum(all_berangkat):,.0f}")
+    else:
+        st.warning("Tidak ada data prediksi yang valid untuk ditampilkan")
+        
 else:
-    st.warning("Tidak ada data yang ditemukan")
-
-
-
+    st.warning("Belum ada data prediksi yang tersimpan di Firebase")
+    st.info("Lakukan prediksi melalui halaman utama untuk menyimpan data prediksi")
