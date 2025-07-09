@@ -4,7 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-db = firestore.Client.from_service_account_json("key.json")
+key_dict = st.secrets["gcp_service_account"]
+db = firestore.Client.from_service_account_info(key_dict)
 
 # Judul halaman
 st.title("Visualisasi Data Prediksi Penumpang")
