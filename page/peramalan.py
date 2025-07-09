@@ -5,19 +5,38 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from google.cloud import firestore
 from tensorflow.keras.models import load_model  # Import fungsi untuk load model .h5
+from joblib import load 
 import os
 
 # Inisialisasi Firebase
-db = firestore.Client.from_service_account_json("key.json")
+key_dict = st.secrets["gcp_service_account"]
+db = firestore.Client.from_service_account_info(key_dict)
 
 # Load data
 csv_path = 'data/data_penumpang-exel.csv'
 df = pd.read_csv(csv_path)
 
-# Preprocessing
+# Load model dari file .h5
+model_path = 'model/lstm_model.h5'  # Path ke model .h5
+
+# Load scaler dari file .pkl
+scaler_path = 'model/scaler.pkl'  # Path ke file scaler
+
+if not os.path.exists(scaler_path) and os.path.exists(model_path):
+    st.error(f"Model tidak ditemukan di: {model_path}")
+    st.error(f"Scaler tidak ditemukan di: {scaler_path}")
+    st.stop()
+
+try:
+    model = load_model(model_path)
+    scaler = load(scaler_path)
+except Exception as e:
+    st.error(f"Gagal memuat: {str(e)}")
+    st.stop()
+
+# Transform data menggunakan scaler yang sudah dilatih
 data = df[['datang', 'berangkat']].values
-scaler = MinMaxScaler()
-data_scaled = scaler.fit_transform(data)
+data_scaled = scaler.transform(data)  # Gunakan transform, bukan fit_transform
 
 look_back = 12
 train_size = int(len(data_scaled) * 0.9)
@@ -49,18 +68,6 @@ tombol_pred = st.sidebar.button('Prediksi')
 # Main UI
 st.header("Prediksi Jumlah Penumpang Datang & Berangkat")
 
-# Load model dari file .h5
-model_path = 'model/lstm_model.h5'  # Path ke model .h5
-if not os.path.exists(model_path):
-    st.error(f"Model tidak ditemukan di: {model_path}")
-    st.stop()
-
-try:
-    model = load_model(model_path)
-    st.success("Model berhasil dimuat")
-except Exception as e:
-    st.error(f"Gagal memuat model: {str(e)}")
-    st.stop()
 
 # Fungsi untuk membuat dataset dengan sliding window
 def get_data(data, look_back):
@@ -106,18 +113,20 @@ if tombol_pred:
                 # Update input: buang data paling awal, tambahkan prediksi
                 current_input = np.vstack((current_input[1:], pred))
             
+           # ... [kode sebelumnya] ...
+
             # Inverse transform predictions
             user_predictions = np.array(user_predictions)
             user_predictions_inv = scaler.inverse_transform(user_predictions)
-            
-            # Pembulatan ke 2 angka di belakang koma
+
+            # PEMBULATAN KE 2 ANGKA DI BELAKANG KOMA
             user_predictions_inv = np.round(user_predictions_inv, 2)
-            
+
             # Create result DataFrame
             months_user = [f"Bulan {i+1}" for i in range(12)]
             user_df = pd.DataFrame(user_predictions_inv, columns=["datang", "berangkat"])
             user_df["bulan"] = months_user
-            
+
             # Display results
             st.subheader("Prediksi 12 Bulan Kedepan")
             st.dataframe(user_df[["bulan", "datang", "berangkat"]])
@@ -133,6 +142,7 @@ if tombol_pred:
                 st.success("Data berhasil disimpan di Firebase!")
             except Exception as e:
                 st.error(f"Gagal menyimpan data: {e}")
+            
             
             # Plot combined data
             gabungan_df = pd.concat([df[['datang', 'berangkat']], user_df[['datang', 'berangkat']]], ignore_index=True)

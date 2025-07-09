@@ -3,7 +3,8 @@ from google.cloud import firestore
 import pandas as pd
 import matplotlib.pyplot as plt
 
-db = firestore.Client.from_service_account_json("key.json")
+key_dict = st.secrets["gcp_service_account"]
+db = firestore.Client.from_service_account_info(key_dict)
 
 # Judul halaman
 st.title("Visualisasi Data Prediksi Penumpang")
@@ -34,7 +35,18 @@ if docs:
 
     # Tampilkan semua prediksi
     for i, doc in enumerate(docs):
-        st.subheader(f"Prediksi #{i+1}")
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.subheader(f"Prediksi #{i+1}")
+        with col2:
+            # Tombol delete dengan styling
+            if st.button("🗑️ Hapus", key=f"delete_{doc.id}", 
+                        help=f"Hapus prediksi #{i+1}",
+                        use_container_width=True):
+                # Hapus dokumen dari Firestore
+                db.collection("forecasting").document(doc.id).delete()
+                st.success(f"Prediksi #{i+1} berhasil dihapus!")
+                st.rerun()  # Refresh halaman untuk update tampilan
         
         try:
             data = doc.to_dict()
@@ -66,10 +78,9 @@ if docs:
             # Tampilkan data dalam tabel
             with st.expander(f"Lihat Data Prediksi #{i+1}"):
                 st.dataframe(pred_df)
-                
+            
         except Exception as e:
             st.error(f"Error memproses dokumen {doc.id}: {str(e)}")
-    
     # Tampilkan semua prediksi dalam satu grafik
     st.subheader("Gabungan Semua Prediksi")
     all_datang = []
