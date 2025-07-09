@@ -9,8 +9,8 @@ from joblib import load
 import os
 
 # Inisialisasi Firebase
-key_dict = st.secrets["gcp_service_account"]
-db = firestore.Client.from_service_account_info(key_dict)
+
+db = firestore.Client.from_service_account_json("key.json")
 
 # Load data
 csv_path = 'data/data_penumpang-exel.csv'
@@ -52,6 +52,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+
+st.title("Halaman Peramalan")
 
 # Sidebar UI
 st.sidebar.subheader("Peramalan Jumlah Penumpang")

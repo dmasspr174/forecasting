@@ -3,8 +3,8 @@ from google.cloud import firestore
 import pandas as pd
 import matplotlib.pyplot as plt
 
-key_dict = st.secrets["gcp_service_account"]
-db = firestore.Client.from_service_account_info(key_dict)
+
+db = firestore.Client.from_service_account_json("key.json")
 
 # Judul halaman
 st.title("Visualisasi Data Prediksi Penumpang")
