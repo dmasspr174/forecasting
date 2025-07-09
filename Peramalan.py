@@ -10,8 +10,7 @@ import os
 
 # Inisialisasi Firebase
 
-key_dict = st.secrets["gcp_service_account"]
-db = firestore.Client.from_service_account_info(key_dict)
+db = firestore.Client.from_service_account_info(dict(st.secrets["gcp_service_account"]))
 
 # Load data
 csv_path = 'data/data_penumpang-exel.csv'
