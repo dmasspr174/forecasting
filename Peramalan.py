@@ -12,7 +12,14 @@ import os
 st.set_page_config(page_title="Forecasting Penumpang", layout="wide")
 
 # Inisialisasi Firebase
-db = firestore.Client.from_service_account_json("key.json")
+if "gcp_service_account" in st.secrets:
+    key_dict = dict(st.secrets["gcp_service_account"])
+    db = firestore.Client.from_service_account_info(key_dict)
+elif os.path.exists("key.json"):
+    db = firestore.Client.from_service_account_json("key.json")
+else:
+    st.error("Kredensial Firestore tidak ditemukan (key.json atau st.secrets['gcp_service_account']).")
+    st.stop()
 
 # Load data
 csv_path = 'data/data_penumpang-exel.csv'

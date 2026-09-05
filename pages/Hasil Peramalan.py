@@ -3,11 +3,20 @@ from google.cloud import firestore
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import os
+
 # Konfigurasi Halaman Wide
 st.set_page_config(page_title="Riwayat Prediksi", layout="wide")
 
 # Inisialisasi Firebase
-db = firestore.Client.from_service_account_json("key.json")
+if "gcp_service_account" in st.secrets:
+    key_dict = dict(st.secrets["gcp_service_account"])
+    db = firestore.Client.from_service_account_info(key_dict)
+elif os.path.exists("key.json"):
+    db = firestore.Client.from_service_account_json("key.json")
+else:
+    st.error("Kredensial Firestore tidak ditemukan (key.json atau st.secrets['gcp_service_account']).")
+    st.stop()
 
 def draw_smooth_chart(combined_df, title, split_index, figsize=(10, 4.2)):
     import numpy as np
